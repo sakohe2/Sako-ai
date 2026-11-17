@@ -1,0 +1,6 @@
+{
+  "name": "SAKO AI",
+  "description": "SAKO AI (sako-ai.ai.studio) — самостоятельный ИИ-помощник нового поколения на русском и казахском языках для общения, программирования, HTML-сайтов, игр и обучения.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

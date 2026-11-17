@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>SAKO AI — sako-ai.ai.studio | Умный ИИ-помощник</title>
+    <meta
+      name="description"
+      content="SAKO AI (sako-ai.ai.studio) — самостоятельный ИИ-помощник нового поколения на всех языках мира для общения, программирования, HTML-сайтов, игр и обучения."
+    />
+    <meta property="og:title" content="SAKO AI — sako-ai.ai.studio | Умный ИИ-помощник" />
+    <meta
+      property="og:description"
+      content="Самостоятельный ИИ-помощник на всех языках мира. Голос Live, код, HTML-сайты, игры и обучение."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#09090B" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SAKO AI" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      window.__sakoDeferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__sakoDeferredInstallPrompt = e;
+        window.dispatchEvent(new Event('sako:installready'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__sakoDeferredInstallPrompt = null;
+        window.dispatchEvent(new Event('sako:appinstalled'));
+      });
+    </script>
+  </head>
+  <body class="bg-[#FAFAFB] text-zinc-900 dark:bg-[#09090B] dark:text-zinc-100 antialiased selection:bg-indigo-500/20 selection:text-indigo-700 dark:selection:text-indigo-300">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
