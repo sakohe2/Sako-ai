@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Check, Download, ExternalLink, FileDown, Smartphone, X } from 'lucide-react';
+import { Check, Download, ExternalLink, Package, Smartphone, X } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { sakoCrownLogo } from '../constants/brand';
 import { getTranslation } from '../i18n/translations';
 import type { Language } from '../types/chat';
 
@@ -19,7 +20,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
     isIOS,
     isInIframe,
     install,
-    downloadStandaloneLauncher,
+    pwaBuilderUrl,
   } = usePWAInstall();
   const [showGuide, setShowGuide] = useState(false);
   const t = getTranslation(lang);
@@ -85,9 +86,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
                 <img
-                  src="/icon.svg"
+                  src={sakoCrownLogo}
                   alt="SAKO AI"
-                  className="w-9 h-9 rounded-xl shrink-0 border border-zinc-200 dark:border-zinc-800"
+                  referrerPolicy="no-referrer"
+                  className="w-9 h-9 rounded-xl object-cover shrink-0 border border-zinc-200 dark:border-zinc-800"
                 />
                 <h3
                   id="pwa-guide-title"
@@ -132,16 +134,17 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             </ol>
 
             <div className="pt-2 space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  downloadStandaloneLauncher();
-                }}
-                className="w-full min-h-[44px] px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs sm:text-sm font-medium hover:border-indigo-500/50 transition-colors flex items-center justify-center gap-2"
-              >
-                <FileDown className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span>{t.installDownloadLauncher}</span>
-              </button>
+              {!isIOS && (
+                <a
+                  href={pwaBuilderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full min-h-[44px] px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs sm:text-sm font-medium hover:border-indigo-500/50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Package className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span>{t.installDownloadLauncher}</span>
+                </a>
+              )}
 
               <button
                 type="button"

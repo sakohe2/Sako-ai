@@ -31,6 +31,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { SettingsModal } from './components/SettingsModal';
 import { WelcomeAnimation } from './components/WelcomeAnimation';
+import { sakoCrownLogo } from './constants/brand';
 import { getWorldLanguage } from './i18n/languages';
 import {
   DEFAULT_SAKO_HTML,
@@ -747,9 +748,10 @@ export default function App() {
         <div className="px-4 py-3.5 border-b border-zinc-200/80 dark:border-zinc-800/90 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <img
-              src="/icon.svg"
+              src={sakoCrownLogo}
               alt="SAKO AI"
-              className="w-7 h-7 rounded-lg shrink-0 border border-zinc-200 dark:border-zinc-700"
+              referrerPolicy="no-referrer"
+              className="w-8 h-8 rounded-lg object-cover shrink-0 border border-zinc-200 dark:border-zinc-700"
             />
             <div className="min-w-0">
               <div className="font-display text-sm font-bold tracking-tight text-zinc-950 dark:text-white whitespace-nowrap">
@@ -963,9 +965,17 @@ export default function App() {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <span className="lg:hidden font-display text-base font-bold tracking-tight text-zinc-950 dark:text-white whitespace-nowrap shrink-0">
-              {t.brand}
-            </span>
+            <div className="lg:hidden flex items-center gap-2 shrink-0">
+              <img
+                src={sakoCrownLogo}
+                alt="SAKO AI"
+                referrerPolicy="no-referrer"
+                className="w-6 h-6 rounded-md object-cover border border-zinc-200 dark:border-zinc-700"
+              />
+              <span className="font-display text-base font-bold tracking-tight text-zinc-950 dark:text-white whitespace-nowrap">
+                {t.brand}
+              </span>
+            </div>
             <div className="hidden lg:flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
               <span className="font-semibold text-zinc-950 dark:text-white truncate max-w-[220px]">
                 {activeSession?.title || t.brand}
@@ -1064,9 +1074,10 @@ export default function App() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       <img
-                        src="/icon.svg"
+                        src={sakoCrownLogo}
                         alt="SAKO AI"
-                        className="w-11 h-11 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs shrink-0"
+                        referrerPolicy="no-referrer"
+                        className="w-12 h-12 rounded-2xl object-cover border border-zinc-200 dark:border-zinc-800 shadow-xs shrink-0"
                       />
                       <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         <span>{t.brand}</span>
@@ -1140,9 +1151,10 @@ export default function App() {
                         <div className="mb-1.5 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                           {!isUser && (
                             <img
-                              src="/icon.svg"
+                              src={sakoCrownLogo}
                               alt=""
-                              className="w-4 h-4 rounded-sm shrink-0"
+                              referrerPolicy="no-referrer"
+                              className="w-4 h-4 rounded-sm object-cover shrink-0"
                             />
                           )}
                           <span className="font-semibold text-zinc-700 dark:text-zinc-300">

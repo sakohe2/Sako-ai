@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
+import { sakoCrownLogo } from '../constants/brand';
 import { getTranslation } from '../i18n/translations';
 import type { Language } from '../types/chat';
 
@@ -168,12 +169,13 @@ export const WelcomeAnimation: React.FC<WelcomeAnimationProps> = ({ lang }) => {
                 className="flex flex-col items-center space-y-5"
               >
                 <motion.img
-                  src="/icon.svg"
+                  src={sakoCrownLogo}
                   alt="SAKO AI"
+                  referrerPolicy="no-referrer"
                   initial={{ scale: 0.78, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.4, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl shadow-indigo-500/15"
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border border-zinc-200 dark:border-zinc-800 shadow-xl shadow-indigo-500/20"
                 />
 
                 <motion.h1
