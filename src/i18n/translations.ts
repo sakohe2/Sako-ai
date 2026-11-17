@@ -138,8 +138,11 @@ export const TRANSLATIONS = {
     ],
     close: 'Закрыть',
     offlineBanner: 'Нет подключения к сети — интерфейс и история доступны офлайн',
-    welcomeBannerTitle: 'Добро пожаловать на SAKO AI',
+    welcomeBannerTitle: 'Добро пожаловать в SAKO AI',
     welcomeBannerSubtitle: 'sako-ai.ai.studio · Все языки мира · Быстрый старт',
+    welcomeSplashHeadline: 'Добро пожаловать в SAKO AI',
+    welcomeSplashSkip: 'Пропустить',
+    welcomeSplashStart: 'Начать общение',
     welcomeHeadline: 'Привет, я SAKO AI',
     welcomeSubhead:
       'Живой, эмоциональный ИИ-помощник, который понимает все языки мира. Общаюсь с душой и юмором, помогаю с кодом, HTML-сайтами, играми, технологиями и обучением.',
@@ -395,6 +398,9 @@ export const TRANSLATIONS = {
     offlineBanner: 'Желіге қосылым жоқ — интерфейс пен тарих офлайн қолжетімді',
     welcomeBannerTitle: 'SAKO AI-ға қош келдіңіз',
     welcomeBannerSubtitle: 'sako-ai.ai.studio · Барлық тілдер · Жылдам жауап',
+    welcomeSplashHeadline: 'SAKO AI-ға қош келдіңіз',
+    welcomeSplashSkip: 'Өткізіп жіберу',
+    welcomeSplashStart: 'Бастау',
     welcomeHeadline: 'Сәлем, мен SAKO AI-мын',
     welcomeSubhead:
       'Әлемнің барлық тілдерін білетін жанды, эмоционалды ИИ-көмекші. Жылулықпен, әзілмен және шын жүректен бағдарламалау, HTML-сайттар, ойындар мен оқу бойынша көмектесемін.',
@@ -650,6 +656,9 @@ export const TRANSLATIONS = {
     offlineBanner: 'You are offline — interface and chat history remain available',
     welcomeBannerTitle: 'Welcome to SAKO AI',
     welcomeBannerSubtitle: 'sako-ai.ai.studio · All languages · Instant replies',
+    welcomeSplashHeadline: 'Welcome to SAKO AI',
+    welcomeSplashSkip: 'Skip',
+    welcomeSplashStart: 'Get started',
     welcomeHeadline: 'Hey, I am SAKO AI',
     welcomeSubhead:
       'An expressive, emotional AI companion fluent in every language. I bring real warmth, humor, and honesty to coding, HTML websites, games, tech, and learning.',
