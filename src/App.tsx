@@ -5,10 +5,12 @@ import {
   Code2,
   Cpu,
   Download,
+  Film,
   Flame,
   Gamepad2,
   Globe,
   GraduationCap,
+  ImagePlus,
   Menu,
   MessageSquare,
   Mic,
@@ -24,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { AboutSakoView } from './components/AboutSakoView';
+import { GeneratedMediaCard } from './components/GeneratedMediaCard';
 import { HtmlStudio } from './components/HtmlStudio';
 import { LiveVoiceModal } from './components/LiveVoiceModal';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
@@ -47,6 +50,7 @@ import type {
   Attachment,
   ChatMessage,
   ChatSession,
+  GeneratedMedia,
   Language,
   LiveVoiceName,
   ModelPresetId,
@@ -272,7 +276,25 @@ export default function App() {
     try {
       localStorage.setItem(STORAGE_SESSIONS_KEY, JSON.stringify(sessions));
     } catch {
-      // ignore
+      try {
+        const compacted = sessions.map((s) => ({
+          ...s,
+          messages: s.messages.map((m) =>
+            m.generatedMedia?.imageDataUrl && m.generatedMedia?.fallbackImageUrl
+              ? {
+                  ...m,
+                  generatedMedia: {
+                    ...m.generatedMedia,
+                    imageDataUrl: undefined,
+                  },
+                }
+              : m
+          ),
+        }));
+        localStorage.setItem(STORAGE_SESSIONS_KEY, JSON.stringify(compacted));
+      } catch {
+        // ignore storage quota errors
+      }
     }
   }, [sessions]);
 
@@ -481,6 +503,164 @@ export default function App() {
       textToSend = trailing;
     } else if (angryCmdMatch) {
       targetPersona = 'angry';
+    }
+
+    const detectFreeMediaIntent = (
+      text: string
+    ): { kind: 'photo' | 'video'; prompt: string } | null => {
+      const photoPrefix = text.match(
+        /^(?:\/photo|\/фото|нарисуй(?:\s+мне)?|создай\s+(?:мне\s+)?(?:фото|картинку|изображение|арт|постер)|сделай\s+(?:мне\s+)?(?:фото|картинку|изображение|постер)|сгенерируй\s+(?:мне\s+)?(?:фото|картинку|изображение)|сурет\s+сал|фото\s+жаса|create\s+(?:an?\s+)?(?:image|photo|picture|poster)|generate\s+(?:an?\s+)?(?:image|photo|picture)|draw\s+)(?:[:\s-]+([\s\S]*))?$/i
+      );
+      if (photoPrefix) {
+        const cleanPrompt = (photoPrefix[1] || '').trim();
+        if (cleanPrompt.length > 0) return { kind: 'photo', prompt: cleanPrompt };
+      }
+
+      const videoPrefix = text.match(
+        /^(?:\/video|\/видео|создай\s+(?:мне\s+)?(?:видео|видеоролик|ролик|клип|анимацию)|сделай\s+(?:мне\s+)?(?:видео|видеоролик|ролик|клип)|сгенерируй\s+(?:мне\s+)?(?:видео|ролик)|бейне\s+жаса|видео\s+жаса|create\s+(?:a\s+)?video|generate\s+(?:a\s+)?video|make\s+(?:a\s+)?video)(?:[:\s-]+([\s\S]*))?$/i
+      );
+      if (videoPrefix) {
+        const cleanPrompt = (videoPrefix[1] || '').trim();
+        if (cleanPrompt.length > 0) return { kind: 'video', prompt: cleanPrompt };
+      }
+
+      return null;
+    };
+
+    const runFreeMediaGeneration = async (
+      kind: 'photo' | 'video',
+      mediaPrompt: string,
+      displayUserText: string
+    ) => {
+      const userMsg: ChatMessage = {
+        id: createId(),
+        role: 'user',
+        text: displayUserText,
+        createdAt: Date.now(),
+      };
+      const assistantMsgId = createId();
+      const placeholder: ChatMessage = {
+        id: assistantMsgId,
+        role: 'model',
+        text: kind === 'photo' ? t.mediaCreatingPhoto : t.mediaCreatingVideo,
+        createdAt: Date.now(),
+      };
+
+      const isFirst = activeSession.messages.length === 0;
+      const nextTitle = isFirst ? displayUserText.slice(0, 42) : activeSession.title;
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSession.id
+            ? {
+                ...s,
+                title: nextTitle,
+                persona: targetPersona,
+                updatedAt: Date.now(),
+                messages: [...s.messages, userMsg, placeholder],
+              }
+            : s
+        )
+      );
+
+      if (overridePrompt === undefined) {
+        setInput('');
+        setAttachments([]);
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      }
+      setAttachmentNotice(null);
+      setView('chat');
+      setIsStreaming(true);
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      try {
+        const resp = await fetch('/api/media/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            kind,
+            prompt: mediaPrompt,
+            uiLang: lang,
+            persona: targetPersona,
+          }),
+        });
+
+        const payload = (await resp.json()) as {
+          kind?: 'photo' | 'video';
+          title?: string;
+          caption?: string;
+          aspectRatio?: '1:1' | '16:9' | '9:16';
+          imageDataUrl?: string;
+          fallbackImageUrl?: string;
+          svgMarkup?: string;
+          videoPlan?: GeneratedMedia['videoPlan'];
+          error?: string;
+        };
+
+        if (!resp.ok || payload.error) {
+          throw new Error(payload.error || `HTTP ${resp.status}`);
+        }
+
+        const generatedMedia: GeneratedMedia = {
+          kind: payload.kind === 'video' ? 'video' : 'photo',
+          title: payload.title || mediaPrompt.slice(0, 48),
+          prompt: mediaPrompt,
+          aspectRatio: payload.aspectRatio || (kind === 'video' ? '9:16' : '1:1'),
+          imageDataUrl: payload.imageDataUrl,
+          fallbackImageUrl: payload.fallbackImageUrl,
+          svgMarkup: payload.svgMarkup,
+          videoPlan: payload.videoPlan,
+        };
+
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === activeSession.id
+              ? {
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === assistantMsgId
+                      ? {
+                          ...m,
+                          text: payload.caption || generatedMedia.title,
+                          generatedMedia,
+                        }
+                      : m
+                  ),
+                }
+              : s
+          )
+        );
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') {
+          setIsStreaming(false);
+          return;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === activeSession.id
+              ? {
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === assistantMsgId ? { ...m, text: message, error: true } : m
+                  ),
+                }
+              : s
+          )
+        );
+      } finally {
+        setIsStreaming(false);
+        abortRef.current = null;
+      }
+    };
+
+    const mediaIntent = attachments.length === 0 ? detectFreeMediaIntent(textToSend) : null;
+    if (mediaIntent) {
+      await runFreeMediaGeneration(mediaIntent.kind, mediaIntent.prompt, textToSend);
+      return;
     }
 
     const targetMode = overrideMode || activeSession.mode;
@@ -1208,6 +1388,10 @@ export default function App() {
                               </div>
                             )}
 
+                            {msg.generatedMedia && (
+                              <GeneratedMediaCard media={msg.generatedMedia} lang={lang} />
+                            )}
+
                             {isLastModel && !isStreaming && msg.text && (
                               <div className="mt-3 pt-2.5 border-t border-zinc-200/70 dark:border-zinc-800 flex items-center justify-end">
                                 <button
@@ -1243,6 +1427,38 @@ export default function App() {
                   {/* Slash-Command Suggestions when typing "/" */}
                   {input.startsWith('/') && !input.includes(' ') && !input.includes('\n') && (
                     <div className="absolute left-0 right-0 bottom-full mb-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#141418] shadow-xl p-1.5 space-y-1 z-20">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInput('/photo ');
+                          textareaRef.current?.focus();
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center justify-between gap-3 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                          <ImagePlus className="w-4 h-4 shrink-0" />
+                          <span className="font-mono">/photo</span>
+                        </span>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                          {t.photoCmdDesc}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInput('/video ');
+                          textareaRef.current?.focus();
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center justify-between gap-3 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                          <Film className="w-4 h-4 shrink-0" />
+                          <span className="font-mono">/video</span>
+                        </span>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                          {t.videoCmdDesc}
+                        </span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -1372,6 +1588,44 @@ export default function App() {
                         >
                           <Mic className="w-3.5 h-3.5 shrink-0" />
                           <span>{t.liveVoiceButton}</span>
+                        </button>
+
+                        {/* Free Photo Creation Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cleaned = input.replace(/^\/(?:photo|фото|video|видео)\s*/i, '').trim();
+                            if (cleaned) {
+                              void handleSend(`/photo ${cleaned}`);
+                            } else {
+                              setInput('/photo ');
+                              textareaRef.current?.focus();
+                            }
+                          }}
+                          title={t.photoCmdDesc}
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:border-indigo-500/60 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                        >
+                          <ImagePlus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <span>{t.photoButton}</span>
+                        </button>
+
+                        {/* Free Video Creation Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cleaned = input.replace(/^\/(?:photo|фото|video|видео)\s*/i, '').trim();
+                            if (cleaned) {
+                              void handleSend(`/video ${cleaned}`);
+                            } else {
+                              setInput('/video ');
+                              textareaRef.current?.focus();
+                            }
+                          }}
+                          title={t.videoCmdDesc}
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:border-indigo-500/60 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                        >
+                          <Film className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <span>{t.videoButton}</span>
                         </button>
 
                         {/* /angry Fierce Mode Command Toggle */}

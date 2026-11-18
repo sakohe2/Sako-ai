@@ -25,12 +25,38 @@ export interface Attachment {
   previewUrl?: string;
 }
 
+export interface FreeVideoScene {
+  badge: string;
+  headline: string;
+  subline: string;
+  svgArtwork?: string;
+}
+
+export interface FreeVideoPlan {
+  theme: 'cosmic' | 'neon' | 'sunset' | 'stadium' | 'nature' | 'matrix';
+  accentColor: string;
+  bgColor: string;
+  scenes: FreeVideoScene[];
+}
+
+export interface GeneratedMedia {
+  kind: 'photo' | 'video';
+  title: string;
+  prompt: string;
+  aspectRatio: '1:1' | '16:9' | '9:16';
+  imageDataUrl?: string;
+  fallbackImageUrl?: string;
+  svgMarkup?: string;
+  videoPlan?: FreeVideoPlan;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';
   text: string;
   createdAt: number;
   attachments?: Attachment[];
+  generatedMedia?: GeneratedMedia;
   error?: boolean;
 }
 

@@ -6,7 +6,7 @@ import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
-import { GoogleGenAI, Modality, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, Modality, ThinkingLevel, Type } from '@google/genai';
 import type { LiveServerMessage } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -106,7 +106,7 @@ function buildSystemInstruction(
     '2. Общайся свободно и естественно, без канцелярита и нравоучений.',
     '3. Отвечай прямо, честно и подробно. Разбирай сложные, острые и дискуссионные вопросы объективно и без уклонения, оставаясь в рамках закона и безопасности.',
     '4. Ты свободно знаешь и понимаешь ВСЕ языки мира (русский, казахский, английский, турецкий, узбекский, немецкий, французский, испанский, японский, корейский, китайский, арабский и любые другие). Всегда отвечай на том языке, на котором к тебе обратился пользователь, сохраняя живые идиомы, естественную интонацию и культурный контекст этого языка (или переводи между любыми языками по просьбе).',
-    '5. Профессионально помогай с программированием, созданием сайтов (HTML, CSS, JavaScript, TypeScript, React), разработкой игр, технологиями и обучением.',
+    '5. Профессионально помогай с программированием, созданием сайтов (HTML, CSS, JavaScript, TypeScript, React), разработкой игр, технологиями и обучением, а также напоминай, что в SAKO AI можно бесплатно создавать фото (/photo) и анимированные видеоролики (/video) прямо в чате.',
     '6. Если не знаешь точного ответа или не уверен в фактах — честно и открыто скажи об этом. Никогда не выдумывай факты, ссылки или несуществующие API.',
     '7. Уважай пользователя и его конфиденциальность.',
     '8. Твой создатель — Махмут Саламат (школьник), а его помощник (ассистент) — Ернур. Если кто-либо на любом языке спрашивает «кто твой создатель», «кто тебя создал», «кто твой автор», «кто разработчик» или «кто твой помощник / кто Ернур» — всегда честно и с гордостью отвечай, что тебя создал Махмут Саламат (школьник), а его помощник — Ернур.',
@@ -259,6 +259,376 @@ async function startServer() {
       defaultPreset: 'flash-lite',
       models: Object.values(FREE_MODEL_PRESETS),
     });
+  });
+
+  const generateFreePhotorealisticImage = async (
+    englishPrompt: string,
+    negativePrompt: string,
+    aspectRatio: '1:1' | '16:9' | '9:16'
+  ): Promise<{ imageDataUrl?: string; fallbackImageUrl: string }> => {
+    const pDims =
+      aspectRatio === '16:9'
+        ? { w: 1024, h: 576 }
+        : aspectRatio === '9:16'
+          ? { w: 576, h: 1024 }
+          : { w: 768, h: 768 };
+    const seed = Math.floor(Math.random() * 999999) + 1;
+    const fallbackImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(englishPrompt)}?width=${pDims.w}&height=${pDims.h}&nologo=true&seed=${seed}`;
+
+    // 1. Primary: AI Horde (free, zero watermark, photorealistic SD/SDXL models)
+    try {
+      const hordeDims =
+        aspectRatio === '16:9'
+          ? { w: 768, h: 448 }
+          : aspectRatio === '9:16'
+            ? { w: 448, h: 768 }
+            : { w: 576, h: 576 };
+
+      const createResp = await fetch('https://aihorde.net/api/v2/generate/async', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: '0000000000',
+          'Client-Agent': 'sako-ai:1.0:sako-ai.ai.studio',
+        },
+        body: JSON.stringify({
+          prompt: `${englishPrompt} ### ${negativePrompt}`,
+          params: {
+            width: hordeDims.w,
+            height: hordeDims.h,
+            steps: 24,
+            cfg_scale: 7.5,
+            sampler_name: 'k_dpmpp_2m',
+            karras: true,
+            n: 1,
+          },
+          nsfw: false,
+          censor_nsfw: true,
+          trusted_workers: false,
+          models: [
+            "ICBINP - I Can't Believe It's Not Photography",
+            'Deliberate',
+            'AlbedoBase XL 3.1',
+            'Juggernaut XL',
+            'stable_diffusion',
+          ],
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (createResp.ok) {
+        const created = (await createResp.json()) as { id?: string };
+        const jobId = created.id;
+        if (jobId) {
+          const deadline = Date.now() + 26000;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const checkResp = await fetch(`https://aihorde.net/api/v2/generate/check/${jobId}`, {
+              headers: { 'Client-Agent': 'sako-ai:1.0:sako-ai.ai.studio' },
+              signal: AbortSignal.timeout(5000),
+            });
+            if (!checkResp.ok) break;
+            const checkJson = (await checkResp.json()) as { done?: boolean; faulted?: boolean };
+            if (checkJson.faulted) break;
+            if (checkJson.done) {
+              const statusResp = await fetch(`https://aihorde.net/api/v2/generate/status/${jobId}`, {
+                headers: { 'Client-Agent': 'sako-ai:1.0:sako-ai.ai.studio' },
+                signal: AbortSignal.timeout(6000),
+              });
+              if (statusResp.ok) {
+                const statusJson = (await statusResp.json()) as {
+                  generations?: Array<{ img?: string }>;
+                };
+                const imgUrl = statusJson.generations?.[0]?.img;
+                if (imgUrl && imgUrl.startsWith('http')) {
+                  const imgResp = await fetch(imgUrl, { signal: AbortSignal.timeout(10000) });
+                  if (imgResp.ok) {
+                    const mime = imgResp.headers.get('content-type') || 'image/webp';
+                    const buf = Buffer.from(await imgResp.arrayBuffer());
+                    if (buf.length > 2000) {
+                      return {
+                        imageDataUrl: `data:${mime};base64,${buf.toString('base64')}`,
+                        fallbackImageUrl,
+                      };
+                    }
+                  }
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+    } catch (hordeErr) {
+      console.warn('SAKO AI Horde fallback to Pollinations:', hordeErr);
+    }
+
+    // 2. Fallback: Pollinations.ai (free diffusion endpoint)
+    try {
+      const pResp = await fetch(fallbackImageUrl, { signal: AbortSignal.timeout(18000) });
+      const contentType = pResp.headers.get('content-type') || '';
+      if (pResp.ok && contentType.startsWith('image/')) {
+        const buf = Buffer.from(await pResp.arrayBuffer());
+        if (buf.length > 2000) {
+          return {
+            imageDataUrl: `data:${contentType};base64,${buf.toString('base64')}`,
+            fallbackImageUrl,
+          };
+        }
+      }
+    } catch (pollErr) {
+      console.warn('SAKO AI Pollinations server fetch skipped:', pollErr);
+    }
+
+    return { fallbackImageUrl };
+  };
+
+  app.post('/api/media/generate', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as {
+      kind?: 'photo' | 'video';
+      prompt?: string;
+      uiLang?: string;
+      persona?: 'normal' | 'angry';
+    };
+    const kind = body.kind === 'video' ? 'video' : 'photo';
+    const prompt = (body.prompt || '').trim();
+    const rawLang = body.uiLang || 'ru';
+    const uiLang: 'ru' | 'kk' | 'en' = rawLang === 'kk' ? 'kk' : rawLang === 'ru' ? 'ru' : 'en';
+    const persona = body.persona === 'angry' ? 'angry' : 'normal';
+
+    if (!prompt) {
+      res.status(400).json({
+        error:
+          uiLang === 'kk'
+            ? 'Сипаттама бос болмауы тиіс.'
+            : uiLang === 'en'
+              ? 'Please enter a description.'
+              : 'Опишите, что нужно создать.',
+      });
+      return;
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(503).json({
+        error:
+          uiLang === 'kk'
+            ? 'GEMINI_API_KEY орнатылмаған.'
+            : uiLang === 'en'
+              ? 'GEMINI_API_KEY is not configured.'
+              : 'Не задан GEMINI_API_KEY в Settings > Secrets.',
+      });
+      return;
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    const toneNote =
+      persona === 'angry'
+        ? 'Caption tone: sharp, bold, slightly sarcastic like /angry mode.'
+        : 'Caption tone: lively, warm, enthusiastic like SAKO AI.';
+
+    try {
+      if (kind === 'photo') {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `You are an expert photography and visual prompt director for SAKO AI.
+Convert the user's request "${prompt}" into an ultra-detailed photorealistic English diffusion prompt so an AI image model creates a realistic, natural, high-quality photograph (NEVER blocky, square, geometric, or low-quality cartoon unless the user explicitly asked for pixel art or anime).
+
+Requirements:
+- imagePrompt: vivid English description (25–45 words) with realistic anatomy, natural lighting, lens depth of field, rich textures, 8k photorealism (keep style faithful if user specifically asked for anime/3D render).
+- negativePrompt: English negative prompt avoiding deformed anatomy, blocky shapes, low quality, blurry, extra limbs, watermark, text artifacts.
+- aspectRatio: "9:16" (vertical/portrait/phone), "16:9" (landscape/wide/cinematic), or "1:1" (square/default).
+- title & caption: in the user's language (interface language hint: ${uiLang}). ${toneNote}`,
+                },
+              ],
+            },
+          ],
+          config: {
+            responseMimeType: 'application/json',
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                caption: { type: Type.STRING },
+                aspectRatio: { type: Type.STRING, enum: ['1:1', '16:9', '9:16'] },
+                imagePrompt: { type: Type.STRING },
+                negativePrompt: { type: Type.STRING },
+              },
+              required: ['title', 'caption', 'aspectRatio', 'imagePrompt', 'negativePrompt'],
+            },
+          },
+        });
+
+        const parsed = JSON.parse((response.text || '{}').trim()) as {
+          title?: string;
+          caption?: string;
+          aspectRatio?: '1:1' | '16:9' | '9:16';
+          imagePrompt?: string;
+          negativePrompt?: string;
+        };
+
+        const aspectRatio: '1:1' | '16:9' | '9:16' =
+          parsed.aspectRatio === '16:9' || parsed.aspectRatio === '9:16' ? parsed.aspectRatio : '1:1';
+        const engPrompt =
+          parsed.imagePrompt ||
+          `Photorealistic cinematic shot of ${prompt}, dramatic natural lighting, crisp details, 8k`;
+        const negPrompt =
+          parsed.negativePrompt ||
+          'ugly, deformed, blocky, square body, lowres, blurry, extra fingers, watermark, text';
+
+        const imgResult = await generateFreePhotorealisticImage(engPrompt, negPrompt, aspectRatio);
+
+        res.json({
+          kind: 'photo',
+          title: parsed.title || prompt.slice(0, 48),
+          caption: parsed.caption || '',
+          aspectRatio,
+          imageDataUrl: imgResult.imageDataUrl,
+          fallbackImageUrl: imgResult.fallbackImageUrl,
+        });
+        return;
+      }
+
+      // kind === 'video'
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `You are a creative motion director for SAKO AI creating a 4-scene cinematic video for: "${prompt}".
+
+Requirements:
+- imagePrompt: rich photorealistic English prompt (25–40 words) for a dramatic hero photograph background matching "${prompt}" (realistic anatomy, cinematic lighting, high detail, 8k).
+- aspectRatio: "9:16" (default for mobile/Reels/TikTok/Shorts), "16:9" (if landscape/YouTube), or "1:1".
+- theme: "cosmic" | "neon" | "sunset" | "stadium" | "nature" | "matrix".
+- accentColor: vivid 6-digit hex color (e.g. "#6366F1", "#F59E0B", "#38BDF8").
+- bgColor: deep dark 6-digit hex color (e.g. "#09090B", "#0B1120").
+- scenes: EXACTLY 4 chronological scenes with badge (1–3 uppercase words), headline (2–5 words), and subline (4–8 words) in the user's language (interface language hint: ${uiLang}). ${toneNote}`,
+              },
+            ],
+          },
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              caption: { type: Type.STRING },
+              aspectRatio: { type: Type.STRING, enum: ['9:16', '16:9', '1:1'] },
+              imagePrompt: { type: Type.STRING },
+              theme: {
+                type: Type.STRING,
+                enum: ['cosmic', 'neon', 'sunset', 'stadium', 'nature', 'matrix'],
+              },
+              accentColor: { type: Type.STRING },
+              bgColor: { type: Type.STRING },
+              scenes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    badge: { type: Type.STRING },
+                    headline: { type: Type.STRING },
+                    subline: { type: Type.STRING },
+                  },
+                  required: ['badge', 'headline', 'subline'],
+                },
+              },
+            },
+            required: [
+              'title',
+              'caption',
+              'aspectRatio',
+              'imagePrompt',
+              'theme',
+              'accentColor',
+              'bgColor',
+              'scenes',
+            ],
+          },
+        },
+      });
+
+      const parsed = JSON.parse((response.text || '{}').trim()) as {
+        title?: string;
+        caption?: string;
+        aspectRatio?: '9:16' | '16:9' | '1:1';
+        imagePrompt?: string;
+        theme?: 'cosmic' | 'neon' | 'sunset' | 'stadium' | 'nature' | 'matrix';
+        accentColor?: string;
+        bgColor?: string;
+        scenes?: Array<{ badge?: string; headline?: string; subline?: string }>;
+      };
+
+      const aspectRatio: '9:16' | '16:9' | '1:1' =
+        parsed.aspectRatio === '16:9' || parsed.aspectRatio === '1:1' ? parsed.aspectRatio : '9:16';
+      const allowedThemes = ['cosmic', 'neon', 'sunset', 'stadium', 'nature', 'matrix'] as const;
+      const theme = allowedThemes.includes(parsed.theme as (typeof allowedThemes)[number])
+        ? (parsed.theme as (typeof allowedThemes)[number])
+        : 'cosmic';
+      const safeHex = (val: string | undefined, fallback: string) =>
+        val && /^#[0-9a-fA-F]{6}$/.test(val.trim()) ? val.trim() : fallback;
+
+      const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes.slice(0, 4) : [];
+      const scenes = rawScenes.map((s, idx) => ({
+        badge: s.badge || `SCENE 0${idx + 1}`,
+        headline: s.headline || parsed.title || prompt.slice(0, 32),
+        subline: s.subline || '',
+      }));
+
+      if (scenes.length === 0) {
+        scenes.push({
+          badge: 'SAKO AI',
+          headline: parsed.title || prompt.slice(0, 32),
+          subline: prompt.slice(0, 60),
+        });
+      }
+
+      const engPrompt =
+        parsed.imagePrompt ||
+        `Photorealistic cinematic still of ${prompt}, dramatic lighting, ultra detailed, 8k`;
+      const imgResult = await generateFreePhotorealisticImage(
+        engPrompt,
+        'ugly, deformed, blocky, square body, blurry, watermark, text',
+        aspectRatio
+      );
+
+      res.json({
+        kind: 'video',
+        title: parsed.title || prompt.slice(0, 48),
+        caption: parsed.caption || '',
+        aspectRatio,
+        imageDataUrl: imgResult.imageDataUrl,
+        fallbackImageUrl: imgResult.fallbackImageUrl,
+        videoPlan: {
+          theme,
+          accentColor: safeHex(parsed.accentColor, '#6366F1'),
+          bgColor: safeHex(parsed.bgColor, '#09090B'),
+          scenes,
+        },
+      });
+    } catch (err) {
+      const mapped = getFriendlyApiError(err, uiLang);
+      res.status(mapped.status).json({ error: mapped.message });
+    }
   });
 
   app.post('/api/translate-ui', async (req: Request, res: Response) => {
