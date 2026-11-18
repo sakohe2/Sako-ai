@@ -89,13 +89,7 @@ export function usePWAInstall() {
     }
   }, [deferredPrompt]);
 
-  const publicSiteUrl =
-    typeof window !== 'undefined' &&
-    window.location.origin &&
-    !window.location.origin.includes('localhost') &&
-    !window.location.origin.includes('ais-dev-')
-      ? `${window.location.origin}/`
-      : 'https://sako-ai.ai.studio/';
+  const publicSiteUrl = 'https://sako-ai.ai.studio/';
 
   const pwaBuilderUrl = `https://www.pwabuilder.com/reportcard?site=${encodeURIComponent(publicSiteUrl)}`;
 

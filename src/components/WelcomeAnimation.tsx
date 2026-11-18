@@ -25,8 +25,8 @@ const IPHONE_GREETINGS: GreetingFrame[] = [
   { text: 'مرحبا', langName: 'العربية', dir: 'rtl' },
 ];
 
-const STEP_DURATION_MS = 560;
-const FINALE_AUTO_CLOSE_MS = 3200;
+const STEP_DURATION_MS = 400;
+const FINALE_AUTO_CLOSE_MS = 2400;
 
 export const WelcomeAnimation: React.FC<WelcomeAnimationProps> = ({ lang }) => {
   const [visible, setVisible] = useState(true);
@@ -75,7 +75,8 @@ export const WelcomeAnimation: React.FC<WelcomeAnimationProps> = ({ lang }) => {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 1.02 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#FAFAFB] dark:bg-[#09090B] text-zinc-950 dark:text-white px-6 overflow-hidden select-none"
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#FAFAFB] dark:bg-[#09090B] text-zinc-950 dark:text-white px-6 overflow-hidden select-none cursor-pointer"
+          onClick={() => setVisible(false)}
           role="dialog"
           aria-modal="true"
           aria-label={t.welcomeSplashHeadline}

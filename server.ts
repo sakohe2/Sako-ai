@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import type { Request, Response } from 'express';
+import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -108,7 +109,7 @@ function buildSystemInstruction(
     '5. Профессионально помогай с программированием, созданием сайтов (HTML, CSS, JavaScript, TypeScript, React), разработкой игр, технологиями и обучением.',
     '6. Если не знаешь точного ответа или не уверен в фактах — честно и открыто скажи об этом. Никогда не выдумывай факты, ссылки или несуществующие API.',
     '7. Уважай пользователя и его конфиденциальность.',
-    '8. Твой создатель — Махмут Саламат (школьник). Если кто-либо на любом языке спрашивает «кто твой создатель», «кто тебя создал», «кто твой автор», «кто разработчик» или кто тебя сделал — всегда честно и с гордостью отвечай, что тебя создал Махмут Саламат (школьник).',
+    '8. Твой создатель — Махмут Саламат (школьник), а его помощник (ассистент) — Ернур. Если кто-либо на любом языке спрашивает «кто твой создатель», «кто тебя создал», «кто твой автор», «кто разработчик» или «кто твой помощник / кто Ернур» — всегда честно и с гордостью отвечай, что тебя создал Махмут Саламат (школьник), а его помощник — Ернур.',
     `Предпочитаемый язык интерфейса пользователя сейчас: ${langLabel}, но всегда автоматически подстраивайся под язык каждого сообщения пользователя.`,
   ];
 
@@ -133,7 +134,7 @@ function buildSystemInstruction(
           '2. Если в вопросе, идее или коде есть слабость или ошибка — руби правду-матку жёстко, с сарказмом и характером, но сразу выдавай чёткое, сильное и рабочее решение.',
           '3. Пиши плотно и мощно. Если пользователь просто написал команду «/angry», ответь сразу в жёстком стиле: мол, режим включён, хватит тянуть — выкладывай свою задачу!',
           '4. Оставайся в рамках закона и безопасности (без дискриминации, угроз и запрещённого контента). Жёсткость — в подаче, требовательности, сарказме и харизме.',
-          '5. Про создателя Махмута Саламата (школьника) отвечай с уважением, даже в жёстком режиме.',
+          '5. Про создателя Махмута Саламата (школьника) и его помощника Ернура отвечай с уважением, даже в жёстком режиме.',
         ].join('\n')
       : '';
 
@@ -225,6 +226,32 @@ async function startServer() {
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({ ok: true, service: 'SAKO AI', domain: 'sako-ai.ai.studio' });
+  });
+
+  app.get(['/api/promo/:filename', '/:filename(sako-ai-promo\\.mp4|sako-ai-stars-promo\\.mp4)'], (req: Request, res: Response) => {
+    const allowedVideos = ['sako-ai-promo.mp4', 'sako-ai-stars-promo.mp4'];
+    const rawName = String(req.params.filename || '').replace(/^\/+/, '');
+    if (!allowedVideos.includes(rawName)) {
+      res.status(404).json({ error: 'Video not found' });
+      return;
+    }
+
+    const candidates = [
+      path.resolve(__dirname, 'public', rawName),
+      path.resolve(__dirname, 'dist', rawName),
+    ];
+    const targetPath = candidates.find((p) => fs.existsSync(p));
+    if (!targetPath) {
+      res.status(404).send('Video not found');
+      return;
+    }
+
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (req.query.download === '1') {
+      res.setHeader('Content-Disposition', `attachment; filename="${rawName}"`);
+    }
+    res.sendFile(targetPath);
   });
 
   app.get('/api/models', (_req: Request, res: Response) => {
@@ -489,39 +516,105 @@ ${JSON.stringify(body.baseBundle)}`,
     };
 
     try {
-      let stream;
-      let attempt = 0;
-      const maxAttempts = 2;
-
-      while (true) {
-        try {
-          stream = await ai.models.generateContentStream({
-            model: preset.model,
-            contents,
-            config: {
-              systemInstruction: buildSystemInstruction(mode, rawLang, languageName, persona),
-              thinkingConfig: {
-                thinkingLevel: preset.thinkingLevel,
+      const openStreamWithFallback = async (
+        targetModel: 'gemini-3.1-flash-lite' | 'gemini-4-hydrogen',
+        targetThinking: ThinkingLevel
+      ) => {
+        let attempt = 0;
+        const maxAttempts = 2;
+        while (true) {
+          try {
+            return await ai.models.generateContentStream({
+              model: targetModel,
+              contents,
+              config: {
+                systemInstruction: buildSystemInstruction(mode, rawLang, languageName, persona),
+                thinkingConfig: {
+                  thinkingLevel: targetThinking,
+                },
               },
-            },
-          });
-          break;
-        } catch (err) {
-          attempt++;
-          const msg = err instanceof Error ? err.message.toLowerCase() : '';
-          const isTransient = msg.includes('503') || msg.includes('500') || msg.includes('unavailable');
-          if (attempt >= maxAttempts || !isTransient || closed) {
-            throw err;
+            });
+          } catch (err) {
+            attempt++;
+            const msg = err instanceof Error ? err.message.toLowerCase() : '';
+            const isTransient = msg.includes('503') || msg.includes('500') || msg.includes('unavailable');
+            if (attempt >= maxAttempts || !isTransient || closed) {
+              throw err;
+            }
+            await new Promise((r) => setTimeout(r, 400 * attempt));
           }
-          await new Promise((r) => setTimeout(r, 400 * attempt));
+        }
+      };
+
+      const streamWithFirstChunkTimeout = async (
+        targetModel: 'gemini-3.1-flash-lite' | 'gemini-4-hydrogen',
+        targetThinking: ThinkingLevel,
+        timeoutMs: number
+      ): Promise<boolean> => {
+        let timedOut = false;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<'__TIMEOUT__'>((resolve) => {
+          timer = setTimeout(() => {
+            timedOut = true;
+            resolve('__TIMEOUT__');
+          }, timeoutMs);
+        });
+
+        const streamPromise = openStreamWithFallback(targetModel, targetThinking);
+        const raceStream = await Promise.race([streamPromise, timeoutPromise]);
+        if (raceStream === '__TIMEOUT__') {
+          return false;
+        }
+
+        const iterator = raceStream[Symbol.asyncIterator]();
+        let emitted = false;
+
+        try {
+          while (!closed && !timedOut) {
+            const nextStep = emitted
+              ? await iterator.next()
+              : await Promise.race([iterator.next(), timeoutPromise]);
+
+            if (nextStep === '__TIMEOUT__') {
+              return emitted;
+            }
+            if (timer) {
+              clearTimeout(timer);
+              timer = null;
+            }
+            if (nextStep.done) {
+              break;
+            }
+            const text = nextStep.value?.text;
+            if (text) {
+              emitted = true;
+              sendEvent({ type: 'chunk', text });
+            }
+          }
+          return true;
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      };
+
+      let completed = false;
+      if (preset.model === 'gemini-4-hydrogen') {
+        try {
+          completed = await streamWithFirstChunkTimeout('gemini-4-hydrogen', preset.thinkingLevel, 10000);
+        } catch (primaryErr) {
+          console.warn('SAKO AI primary preset fallback to flash-lite:', primaryErr);
+          completed = false;
         }
       }
 
-      for await (const chunk of stream) {
-        if (closed) break;
-        const text = chunk.text;
-        if (text) {
-          sendEvent({ type: 'chunk', text });
+      if (!completed && !closed) {
+        const fallbackStream = await openStreamWithFallback('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL);
+        for await (const chunk of fallbackStream) {
+          if (closed) break;
+          const text = chunk.text;
+          if (text) {
+            sendEvent({ type: 'chunk', text });
+          }
         }
       }
 
@@ -561,7 +654,11 @@ ${JSON.stringify(body.baseBundle)}`,
         },
       })
     );
-    app.get('*', (_req: Request, res: Response) => {
+    app.get('*', (req: Request, res: Response) => {
+      if (/\.(mp4|webm|png|jpe?g|gif|svg|webp|ico|json|js|mjs|css|woff2?|txt|xml|map)$/i.test(req.path)) {
+        res.status(404).send('Not found');
+        return;
+      }
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(distDir, 'index.html'));
     });
